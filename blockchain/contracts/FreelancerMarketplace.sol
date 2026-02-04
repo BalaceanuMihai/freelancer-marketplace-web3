@@ -1,5 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
+import { FeeMath } from "./libraries/FeeMath.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
+
+using FeeMath for uint256;
+
 
 interface IEscrow {
     function deposit(uint256 jobId) external payable;
@@ -8,7 +14,7 @@ interface IEscrow {
     function refund(uint256 jobId, address payable client) external;
 }
 
-contract FreelancerMarketplace {
+contract FreelancerMarketplace is ReentrancyGuard{
     // 2% fee in basis points (bps). 10_000 bps = 100%
     uint256 public constant PLATFORM_FEE_BPS = 200;
 
@@ -47,6 +53,7 @@ contract FreelancerMarketplace {
     }
 
     constructor(address escrowAddress, address payable _feeRecipient) {
+        require(FeeMath.isValidFee(PLATFORM_FEE_BPS), "Invalid fee bps");
         require(escrowAddress != address(0), "Invalid escrow");
         require(_feeRecipient != address(0), "Invalid fee recipient");
 

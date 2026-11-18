@@ -13,8 +13,9 @@
 # Hardhat compilation (v2) support directory
 /cache
 
-# Typechain output
+# TypeChain generated types
 /types
+/typechain-types/
 
 # Hardhat coverage reports
 /coverage

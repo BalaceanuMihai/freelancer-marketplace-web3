@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { ethers } from "ethers";
+import { Contract, ethers } from "ethers";
 
 import deployments from "../../blockchain/deployments/localhost.json";
-import { FreelancerMarketplace__factory } from "../../blockchain/typechain-types/factories/contracts/FreelancerMarketplace.sol/FreelancerMarketplace__factory";
-
+import marketplaceArtifact from "../../blockchain/artifacts/contracts/FreelancerMarketplace.sol/FreelancerMarketplace.json";
 const RPC_URL = "http://127.0.0.1:8545";
 
 function isPk(pk: string) {
@@ -11,6 +10,23 @@ function isPk(pk: string) {
 }
 function short(addr: string) {
   return addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "-";
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (typeof error === "object" && error !== null) {
+    if (
+      "shortMessage" in error &&
+      typeof error.shortMessage === "string"
+    ) {
+      return error.shortMessage;
+    }
+
+    if ("message" in error && typeof error.message === "string") {
+      return error.message;
+    }
+  }
+
+  return typeof error === "string" ? error : fallback;
 }
 
 export default function App() {
@@ -72,8 +88,8 @@ export default function App() {
         const b = await provider.getBalance(a);
         setFreeBal(ethers.formatEther(b));
       }
-    } catch (e: any) {
-      setStatus(e?.message ?? "Refresh failed");
+    } catch (error: unknown) {
+      setStatus(getErrorMessage(error, "Refresh failed"));
     }
   }
 
@@ -82,12 +98,16 @@ export default function App() {
     if (isPk(clientPk)) {
       try {
         setClientWallet(new ethers.Wallet(clientPk.trim(), provider));
-      } catch {}
+      } catch (error: unknown) {
+        setStatus(getErrorMessage(error, "Could not restore client wallet"));
+      }
     }
     if (isPk(freePk)) {
       try {
         setFreeWallet(new ethers.Wallet(freePk.trim(), provider));
-      } catch {}
+      } catch (error: unknown) {
+        setStatus(getErrorMessage(error, "Could not restore freelancer wallet"));
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -102,9 +122,8 @@ export default function App() {
     try {
       setBusy(true);
       setStatus("Client: creating job...");
-      const mp = FreelancerMarketplace__factory.connect(marketplaceAddress, clientWallet);
+      const mp = new Contract(marketplaceAddress, marketplaceArtifact.abi, clientWallet);
 
-      // ✅ Replace if your function name differs
       const tx = await mp.createJob(jobDesc, {
         value: ethers.parseEther(jobBudgetEth),
       });
@@ -113,8 +132,8 @@ export default function App() {
       await tx.wait();
       await refresh();
       setStatus("Job created ✅ (funds deposited)");
-    } catch (e: any) {
-      setStatus(e?.shortMessage ?? e?.message ?? "createJob failed");
+    } catch (error: unknown) {
+      setStatus(getErrorMessage(error, "createJob failed"));
     } finally {
       setBusy(false);
     }
@@ -125,37 +144,15 @@ export default function App() {
     try {
       setBusy(true);
       setStatus("Freelancer: applying to job...");
-      const mp = FreelancerMarketplace__factory.connect(marketplaceAddress, freeWallet);
+      const mp = new Contract(marketplaceAddress, marketplaceArtifact.abi, freeWallet);
 
-      // ✅ Replace if your function name differs
       const tx = await mp.applyForJob(BigInt(jobId));
 
       setStatus(`Pending: ${tx.hash.slice(0, 10)}...`);
       await tx.wait();
       setStatus("Applied ✅");
-    } catch (e: any) {
-      setStatus(e?.shortMessage ?? e?.message ?? "apply failed");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function acceptFreelancerAsClient() {
-    if (!clientWallet) return setStatus("Load client wallet first.");
-    if (!freeAddr) return setStatus("Load freelancer wallet (so we know freelancer address).");
-    try {
-      setBusy(true);
-      setStatus("Client: accepting freelancer...");
-      const mp = FreelancerMarketplace__factory.connect(marketplaceAddress, clientWallet);
-
-      // ✅ Replace if your function name differs
-      const tx = await (mp as any).acceptFreelancer(BigInt(jobId), freeAddr);
-
-      setStatus(`Pending: ${tx.hash.slice(0, 10)}...`);
-      await tx.wait();
-      setStatus("Freelancer accepted ✅ (escrow active)");
-    } catch (e: any) {
-      setStatus(e?.shortMessage ?? e?.message ?? "accept failed");
+    } catch (error: unknown) {
+      setStatus(getErrorMessage(error, "apply failed"));
     } finally {
       setBusy(false);
     }
@@ -166,16 +163,15 @@ export default function App() {
     try {
       setBusy(true);
       setStatus("Freelancer: marking completed...");
-      const mp = FreelancerMarketplace__factory.connect(marketplaceAddress, freeWallet);
+      const mp = new Contract(marketplaceAddress, marketplaceArtifact.abi, freeWallet);
 
-      // ✅ Replace if your function name differs
       const tx = await mp.markCompleted(BigInt(jobId));
 
       setStatus(`Pending: ${tx.hash.slice(0, 10)}...`);
       await tx.wait();
       setStatus("Marked completed ✅");
-    } catch (e: any) {
-      setStatus(e?.shortMessage ?? e?.message ?? "markCompleted failed");
+    } catch (error: unknown) {
+      setStatus(getErrorMessage(error, "markCompleted failed"));
     } finally {
       setBusy(false);
     }
@@ -186,17 +182,16 @@ export default function App() {
     try {
       setBusy(true);
       setStatus("Client: releasing payment...");
-      const mp = FreelancerMarketplace__factory.connect(marketplaceAddress, clientWallet);
+      const mp = new Contract(marketplaceAddress, marketplaceArtifact.abi, clientWallet);
 
-      // ✅ Replace if your function name differs
       const tx = await mp.releasePayment(BigInt(jobId));
 
       setStatus(`Pending: ${tx.hash.slice(0, 10)}...`);
       await tx.wait();
       await refresh();
       setStatus("Payment released ✅");
-    } catch (e: any) {
-      setStatus(e?.shortMessage ?? e?.message ?? "releasePayment failed");
+    } catch (error: unknown) {
+      setStatus(getErrorMessage(error, "releasePayment failed"));
     } finally {
       setBusy(false);
     }
@@ -290,7 +285,7 @@ export default function App() {
           <div>
             <h1 style={styles.title}>Freelancer Marketplace – Demo Flow</h1>
             <div style={styles.subtitle}>
-              Client deposits funds → Freelancer applies → Accept → Complete → Release payment.
+              Client deposits funds → Freelancer applies → Complete → Release payment.
             </div>
           </div>
           <div style={styles.mono}>RPC {RPC_URL}</div>
@@ -355,7 +350,7 @@ export default function App() {
             <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
               <button onClick={createJobAsClient} disabled={busy || !clientWallet} style={b2}>1) Client: Create Job</button>
               <button onClick={applyAsFreelancer} disabled={busy || !freeWallet} style={b1}>2) Freelancer: Apply</button>
-              <button onClick={acceptFreelancerAsClient} disabled={busy || !clientWallet || !freeAddr} style={b2}>3) Client: Accept</button>
+              <button type="button" disabled title="Contractul actual atribuie freelancerul direct la aplicare; acceptFreelancer nu exista." style={{ ...styles.btn2, ...styles.disabled }}>3) Client: Accept (unavailable)</button>
               <button onClick={markCompletedAsFreelancer} disabled={busy || !freeWallet} style={b1}>4) Freelancer: Mark Completed</button>
               <button onClick={releasePaymentAsClient} disabled={busy || !clientWallet} style={b2}>5) Client: Release Payment</button>
             </div>

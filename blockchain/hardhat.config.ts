@@ -1,13 +1,33 @@
-import { HardhatUserConfig } from "hardhat/config";
+import { defineConfig } from "hardhat/config";
 
-import "@nomicfoundation/hardhat-ethers";
-import "@nomicfoundation/hardhat-chai-matchers";
-import "@typechain/hardhat";
+import hardhatEthers from "@nomicfoundation/hardhat-ethers";
+import hardhatEthersChaiMatchers from "@nomicfoundation/hardhat-ethers-chai-matchers";
+import hardhatMocha from "@nomicfoundation/hardhat-mocha";
+import hardhatTypechain from "@nomicfoundation/hardhat-typechain";
+import hardhatNetworkHelpers from "@nomicfoundation/hardhat-network-helpers";
 
-const config: HardhatUserConfig = {
+export default defineConfig({
+  plugins: [
+    hardhatEthers,
+    hardhatEthersChaiMatchers,
+    hardhatMocha,
+    hardhatTypechain,
+    hardhatNetworkHelpers,
+  ],
+
+  typechain: {
+    outDir: "./typechain-types",
+  },
+
   solidity: {
     version: "0.8.28",
   },
-};
 
-export default config;
+  networks: {
+    localhost: {
+      type: "http",
+      chainType: "l1",
+      url: "http://127.0.0.1:8545",
+    },
+  },
+});
